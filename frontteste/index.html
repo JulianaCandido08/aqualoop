@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Teste Irrigação ESP32</title>
+  <style>
+    body { font-family: Arial; text-align: center; padding: 20px; }
+    .box { border: 1px solid #ccc; padding: 15px; margin: 10px auto; width: 300px; border-radius: 8px; }
+    .alerta { color: red; font-weight: bold; }
+    button { margin: 5px; padding: 8px 12px; }
+  </style>
+</head>
+<body>
+  <h1>Status do Sistema</h1>
+  <div class="box">
+    <p><strong>Temperatura:</strong> <span id="temperatura">--</span> °C</p>
+    <p><strong>Umidade do Solo:</strong> <span id="umidade">--</span> %</p>
+    <p><strong>Chuva:</strong> <span id="chuva">--</span></p>
+    <p class="alerta" id="alerta"></p>
+  </div>
+
+  <div class="box">
+    <h2>Bomba 1</h2>
+    <button onclick="controlarBomba('bomba1','on')">Ligar</button>
+    <button onclick="controlarBomba('bomba1','off')">Desligar</button>
+  </div>
+
+  <div class="box">
+    <h2>Bomba 2</h2>
+    <button onclick="controlarBomba('bomba2','on')">Ligar</button>
+    <button onclick="controlarBomba('bomba2','off')">Desligar</button>
+  </div>
+
+  <script>
+    const ip = "192.168.1.67"; // TROCAR PELO IP QUE TIVER NO ESP32
+
+    function atualizarStatus() {
+      fetch(`http://${ip}/status`)
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById("temperatura").textContent =
+            (data.temperatura !== undefined && data.temperatura !== 0)
+              ? data.temperatura
+              : "--";
+
+          document.getElementById("umidade").textContent =
+            (data.umidadeSolo !== undefined)
+              ? data.umidadeSolo
+              : "--";
+
+          document.getElementById("chuva").textContent =
+            data.chuva || "--";
+
+          document.getElementById("alerta").textContent =
+            data.alerta || "";
+        })
+        .catch(err => console.error("Erro:", err));
+    }
+
+    function controlarBomba(bomba, acao) {
+      fetch(`http://${ip}/${bomba}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `acao=${acao}`
+      })
+      .then(res => res.text())
+      .then(alert)
+      .catch(err => alert("Erro ao enviar comando"));
+    }
+
+    setInterval(atualizarStatus, 3000);
+    atualizarStatus();
+  </script>
+</body>
+</html>
