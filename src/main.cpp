@@ -3,22 +3,19 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
-// Conexão Wi-Fi
 const char* ssid = "wifi";
 const char* password = "wifi";
 
 #define DHTPIN 26
-#define DHTTYPE DHT22
+#define DHTTYPE DHT11
 #define SOIL_PIN 34
-#define RAIN_SENSOR_PIN 13
-#define BOMBA1_PIN 23
-#define BOMBA2_PIN 19
+#define RAIN_SENSOR_PIN 14
+#define BOMBA1_PIN 19
+#define BOMBA2_PIN 23
 
-// Relé ativo em nível LOW
 #define LIGADO LOW
 #define DESLIGADO HIGH
 
-// Sensores
 #define SOIL_DRY 3500
 #define SOIL_WET 1500
 #define LIMITE_UMIDADE 30
@@ -26,10 +23,9 @@ const char* password = "wifi";
 DHT dht(DHTPIN, DHTTYPE);
 WebServer server(80);
 
-// evitar mensagens repetidas
+// Estados anteriores
 String estadoChuvaAnterior = "";
 bool alertaUmidadeEmitido = false;
-
 
 float getTemperatura() {
   float t = dht.readTemperature();
@@ -53,13 +49,14 @@ String getStatusChuva() {
 void setup() {
   Serial.begin(115200);
   dht.begin();
-  delay(2000); 
+  delay(2000);
 
   pinMode(RAIN_SENSOR_PIN, INPUT);
   pinMode(BOMBA1_PIN, OUTPUT);
   pinMode(BOMBA2_PIN, OUTPUT);
-  digitalWrite(BOMBA1_PIN, DESLIGADO);
-  digitalWrite(BOMBA2_PIN, DESLIGADO);
+
+  digitalWrite(BOMBA1_PIN, DESLIGADO); 
+  digitalWrite(BOMBA2_PIN, LIGADO);    
 
   // Conexão Wi-Fi
   WiFi.begin(ssid, password);
@@ -90,15 +87,14 @@ void setup() {
     if (umidade < LIMITE_UMIDADE) alerta += "Alerta: Umidade do solo baixa. ";
 
     String resposta = "{";
-    if (temp == -127)
-      resposta += "\"temperatura\":\"Erro\",";
-    else
-      resposta += "\"temperatura\":" + String(temp, 1) + ",";
+    resposta += (temp == -127)
+      ? "\"temperatura\":\"Erro\","
+      : "\"temperatura\":" + String(temp, 1) + ",";
 
     resposta += "\"umidadeSolo\":" + String(umidade, 1) + ",";
     resposta += "\"chuva\":\"" + chuva + "\",";
     resposta += "\"bomba1\":\"" + String(digitalRead(BOMBA1_PIN) == LIGADO ? "ligada" : "desligada") + "\",";
-    resposta += "\"bomba2\":\"" + String(digitalRead(BOMBA2_PIN) == LIGADO ? "ligada" : "desligada") + "\",";
+    resposta += "\"bomba2\":\"ligada\",";
     resposta += "\"alerta\":\"" + alerta + "\"";
     resposta += "}";
 
@@ -107,22 +103,22 @@ void setup() {
 
   // POST /bomba1
   server.on("/bomba1", HTTP_POST, []() {
+    if (!server.hasArg("acao")) {
+      server.send(400, "text/plain", "Parâmetro 'acao' ausente");
+      return;
+    }
+
     String acao = server.arg("acao");
-    if (acao == "on") digitalWrite(BOMBA1_PIN, LIGADO);
-    else if (acao == "off") digitalWrite(BOMBA1_PIN, DESLIGADO);
-    else return server.send(400, "text/plain", "Ação inválida");
 
-    server.send(200, "text/plain", "Bomba 1 " + acao);
-  });
-
-  // POST /bomba2
-  server.on("/bomba2", HTTP_POST, []() {
-    String acao = server.arg("acao");
-    if (acao == "on") digitalWrite(BOMBA2_PIN, LIGADO);
-    else if (acao == "off") digitalWrite(BOMBA2_PIN, DESLIGADO);
-    else return server.send(400, "text/plain", "Ação inválida");
-
-    server.send(200, "text/plain", "Bomba 2 " + acao);
+    if (acao == "on") {
+      digitalWrite(BOMBA1_PIN, LIGADO);
+      server.send(200, "text/plain", "Bomba 1 ligada");
+    } else if (acao == "off") {
+      digitalWrite(BOMBA1_PIN, DESLIGADO);
+      server.send(200, "text/plain", "Bomba 1 desligada");
+    } else {
+      server.send(400, "text/plain", "Ação inválida: use 'on' ou 'off'");
+    }
   });
 
   server.begin();
@@ -132,7 +128,7 @@ void setup() {
 void loop() {
   server.handleClient();
 
-  // Verifica mudança no estado da chuva
+ 
   String estadoAtualChuva = getStatusChuva();
   if (estadoAtualChuva != estadoChuvaAnterior) {
     Serial.print("Status Atual da Chuva: ");
@@ -140,17 +136,20 @@ void loop() {
     estadoChuvaAnterior = estadoAtualChuva;
   }
 
-  // Verifica umidade do solo
+
   float umidade = getUmidadeSolo();
+  Serial.print("Umidade do Solo: ");
+  Serial.print(umidade);
+  Serial.println("%");
+
+
   if (umidade < LIMITE_UMIDADE && !alertaUmidadeEmitido) {
-    Serial.print(" Umidade do solo baixa: ");
-    Serial.print(umidade);
-    Serial.println("%");
+    Serial.println("Umidade do solo baixa!");
     alertaUmidadeEmitido = true;
   } else if (umidade >= LIMITE_UMIDADE && alertaUmidadeEmitido) {
-    Serial.println(" Umidade do solo está normal.");
+    Serial.println("Umidade do solo está normal.");
     alertaUmidadeEmitido = false;
   }
 
-  delay(1000); 
+  delay(1000);
 }
