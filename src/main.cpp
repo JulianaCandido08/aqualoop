@@ -3,12 +3,12 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
-const char* ssid = "----";
-const char* password = "-----";
+const char* ssid = "--";
+const char* password = "--";
 
 #define DHTPIN 26
 #define DHTTYPE DHT11
-#define SOIL_PIN 34
+#define SOIL_PIN 25      
 #define RAIN_SENSOR_PIN 14
 #define BOMBA1_PIN 19
 #define BOMBA2_PIN 23
@@ -16,14 +16,11 @@ const char* password = "-----";
 #define LIGADO LOW
 #define DESLIGADO HIGH
 
-#define SOIL_DRY 3500
-#define SOIL_WET 1500
 #define LIMITE_UMIDADE 30
 
 DHT dht(DHTPIN, DHTTYPE);
 WebServer server(80);
 
-// Estados anteriores
 String estadoChuvaAnterior = "";
 bool alertaUmidadeEmitido = false;
 
@@ -36,10 +33,14 @@ float getTemperatura() {
   return t;
 }
 
+// LOW = molhado, HIGH = seco
 float getUmidadeSolo() {
-  int leitura = analogRead(SOIL_PIN);
-  leitura = constrain(leitura, SOIL_WET, SOIL_DRY);
-  return map(leitura, SOIL_DRY, SOIL_WET, 0, 100);
+  int leitura = digitalRead(SOIL_PIN);
+  if (leitura == HIGH) {
+    return 0.0; // Solo seco
+  } else {
+    return 100.0; // Solo molhado
+  }
 }
 
 String getStatusChuva() {
@@ -52,6 +53,7 @@ void setup() {
   delay(2000);
 
   pinMode(RAIN_SENSOR_PIN, INPUT);
+  pinMode(SOIL_PIN, INPUT);            
   pinMode(BOMBA1_PIN, OUTPUT);
   pinMode(BOMBA2_PIN, OUTPUT);
 
@@ -92,8 +94,8 @@ void setup() {
 
     resposta += "\"umidadeSolo\":" + String(umidade, 1) + ",";
     resposta += "\"chuva\":\"" + chuva + "\",";
-    resposta += "\"bomba1\":" + String(digitalRead(BOMBA1_PIN) == LIGADO ? 1 : 0) + ",";
-    resposta += "\"bomba2\":1,";
+    resposta += "\"bomba1\":" + String(digitalRead(BOMBA1_PIN) == LIGADO ? "true" : "false") + ",";
+    resposta += "\"bomba2\":true,";
     resposta += "\"alerta\":\"" + alerta + "\"";
     resposta += "}";
 
@@ -103,20 +105,23 @@ void setup() {
   // POST /bomba1
   server.on("/bomba1", HTTP_POST, []() {
     if (!server.hasArg("acao")) {
-      server.send(400, "text/plain", "Parâmetro 'acao' ausente");
+      server.send(400, "application/json", "{\"erro\":\"Parâmetro 'acao' ausente\"}");
       return;
     }
 
     String acao = server.arg("acao");
+    String resposta;
 
-    if (acao == "on") {
+    if (acao == "1") {
       digitalWrite(BOMBA1_PIN, LIGADO);
-      server.send(200, "text/plain", "Bomba 1 ligada");
-    } else if (acao == "off") {
+      resposta = "{\"bomba1\":true}";
+      server.send(200, "application/json", resposta);
+    } else if (acao == "0") {
       digitalWrite(BOMBA1_PIN, DESLIGADO);
-      server.send(200, "text/plain", "Bomba 1 desligada");
+      resposta = "{\"bomba1\":false}";
+      server.send(200, "application/json", resposta);
     } else {
-      server.send(400, "text/plain", "Ação inválida: use 'on' ou 'off'");
+      server.send(400, "application/json", "{\"erro\":\"Ação inválida: use '1' ou '0'\"}");
     }
   });
 
@@ -135,7 +140,7 @@ void loop() {
   }
 
   float umidade = getUmidadeSolo();
-  Serial.print("Umidade do Solo: ");
+  Serial.print("Umidade do Solo (digital): ");
   Serial.print(umidade);
   Serial.println("%");
 
