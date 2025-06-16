@@ -3,8 +3,8 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
-const char* ssid = "wifi";
-const char* password = "wifi";
+const char* ssid = "----";
+const char* password = "-----";
 
 #define DHTPIN 26
 #define DHTTYPE DHT11
@@ -58,7 +58,6 @@ void setup() {
   digitalWrite(BOMBA1_PIN, DESLIGADO); 
   digitalWrite(BOMBA2_PIN, LIGADO);    
 
-  // Conexão Wi-Fi
   WiFi.begin(ssid, password);
   Serial.print("Conectando");
   unsigned long start = millis();
@@ -76,7 +75,7 @@ void setup() {
     return;
   }
 
-  // Rota GET /status
+  // GET /status
   server.on("/status", HTTP_GET, []() {
     float temp = getTemperatura();
     float umidade = getUmidadeSolo();
@@ -93,8 +92,8 @@ void setup() {
 
     resposta += "\"umidadeSolo\":" + String(umidade, 1) + ",";
     resposta += "\"chuva\":\"" + chuva + "\",";
-    resposta += "\"bomba1\":\"" + String(digitalRead(BOMBA1_PIN) == LIGADO ? "ligada" : "desligada") + "\",";
-    resposta += "\"bomba2\":\"ligada\",";
+    resposta += "\"bomba1\":" + String(digitalRead(BOMBA1_PIN) == LIGADO ? 1 : 0) + ",";
+    resposta += "\"bomba2\":1,";
     resposta += "\"alerta\":\"" + alerta + "\"";
     resposta += "}";
 
@@ -128,7 +127,6 @@ void setup() {
 void loop() {
   server.handleClient();
 
- 
   String estadoAtualChuva = getStatusChuva();
   if (estadoAtualChuva != estadoChuvaAnterior) {
     Serial.print("Status Atual da Chuva: ");
@@ -136,12 +134,10 @@ void loop() {
     estadoChuvaAnterior = estadoAtualChuva;
   }
 
-
   float umidade = getUmidadeSolo();
   Serial.print("Umidade do Solo: ");
   Serial.print(umidade);
   Serial.println("%");
-
 
   if (umidade < LIMITE_UMIDADE && !alertaUmidadeEmitido) {
     Serial.println("Umidade do solo baixa!");
