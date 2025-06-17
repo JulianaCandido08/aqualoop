@@ -21,18 +21,18 @@
 
   <div class="box">
     <h2>Bomba 1</h2>
-    <button onclick="controlarBomba('bomba1','on')">Ligar</button>
-    <button onclick="controlarBomba('bomba1','off')">Desligar</button>
+    <button onclick="controlarBomba('bomba1','1')">Ligar</button>
+    <button onclick="controlarBomba('bomba1','0')">Desligar</button>
   </div>
 
   <div class="box">
     <h2>Bomba 2</h2>
-    <button onclick="controlarBomba('bomba2','on')">Ligar</button>
-    <button onclick="controlarBomba('bomba2','off')">Desligar</button>
+    <button onclick="controlarBomba('bomba2','1')">Ligar</button>
+    <button onclick="controlarBomba('bomba2','0')">Desligar</button>
   </div>
 
   <script>
-    const ip = "192.168.1.105"; // TROCAR PELO IP QUE TIVER NO ESP32
+    const ip = "192.168.1.67"; // trocar ip
 
     function atualizarStatus() {
       fetch(`http://${ip}/status`)

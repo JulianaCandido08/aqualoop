@@ -3,12 +3,12 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
-const char* ssid = "--";
-const char* password = "--";
+const char* ssid = "wifi";
+const char* password = "wifi";
 
 #define DHTPIN 26
 #define DHTTYPE DHT11
-#define SOIL_PIN 25      
+#define SOIL_PIN 25
 #define RAIN_SENSOR_PIN 14
 #define BOMBA1_PIN 19
 #define BOMBA2_PIN 23
@@ -23,6 +23,7 @@ WebServer server(80);
 
 String estadoChuvaAnterior = "";
 bool alertaUmidadeEmitido = false;
+int statusBomba1Anterior = -1;
 
 float getTemperatura() {
   float t = dht.readTemperature();
@@ -36,11 +37,7 @@ float getTemperatura() {
 // LOW = molhado, HIGH = seco
 float getUmidadeSolo() {
   int leitura = digitalRead(SOIL_PIN);
-  if (leitura == HIGH) {
-    return 0.0; // Solo seco
-  } else {
-    return 100.0; // Solo molhado
-  }
+  return (leitura == HIGH) ? 0.0 : 100.0;
 }
 
 String getStatusChuva() {
@@ -53,12 +50,12 @@ void setup() {
   delay(2000);
 
   pinMode(RAIN_SENSOR_PIN, INPUT);
-  pinMode(SOIL_PIN, INPUT);            
+  pinMode(SOIL_PIN, INPUT);
   pinMode(BOMBA1_PIN, OUTPUT);
   pinMode(BOMBA2_PIN, OUTPUT);
 
-  digitalWrite(BOMBA1_PIN, DESLIGADO); 
-  digitalWrite(BOMBA2_PIN, LIGADO);    
+  digitalWrite(BOMBA1_PIN, DESLIGADO);
+  digitalWrite(BOMBA2_PIN, LIGADO);
 
   WiFi.begin(ssid, password);
   Serial.print("Conectando");
@@ -94,15 +91,15 @@ void setup() {
 
     resposta += "\"umidadeSolo\":" + String(umidade, 1) + ",";
     resposta += "\"chuva\":\"" + chuva + "\",";
-    resposta += "\"bomba1\":" + String(digitalRead(BOMBA1_PIN) == LIGADO ? "true" : "false") + ",";
-    resposta += "\"bomba2\":true,";
+    resposta += "\"bomba1\":" + String(digitalRead(BOMBA1_PIN) == LIGADO ? 1 : 0) + ",";
+    resposta += "\"bomba2\":1,";
     resposta += "\"alerta\":\"" + alerta + "\"";
     resposta += "}";
 
     server.send(200, "application/json", resposta);
   });
 
-  // POST /bomba1
+  // POST /bomba1 com acao=1 ou acao=0
   server.on("/bomba1", HTTP_POST, []() {
     if (!server.hasArg("acao")) {
       server.send(400, "application/json", "{\"erro\":\"Parâmetro 'acao' ausente\"}");
@@ -114,11 +111,11 @@ void setup() {
 
     if (acao == "1") {
       digitalWrite(BOMBA1_PIN, LIGADO);
-      resposta = "{\"bomba1\":true}";
+      resposta = "{\"bomba1\":1}";
       server.send(200, "application/json", resposta);
     } else if (acao == "0") {
       digitalWrite(BOMBA1_PIN, DESLIGADO);
-      resposta = "{\"bomba1\":false}";
+      resposta = "{\"bomba1\":0}";
       server.send(200, "application/json", resposta);
     } else {
       server.send(400, "application/json", "{\"erro\":\"Ação inválida: use '1' ou '0'\"}");
@@ -132,17 +129,24 @@ void setup() {
 void loop() {
   server.handleClient();
 
+  float temperatura = getTemperatura();
+  if (temperatura != -127) {
+    Serial.print("Temperatura: ");
+    Serial.print(temperatura);
+    Serial.println(" °C");
+  }
+
   String estadoAtualChuva = getStatusChuva();
   if (estadoAtualChuva != estadoChuvaAnterior) {
-    Serial.print("Status Atual da Chuva: ");
+    Serial.print("Status da Chuva: ");
     Serial.println(estadoAtualChuva);
     estadoChuvaAnterior = estadoAtualChuva;
   }
 
   float umidade = getUmidadeSolo();
-  Serial.print("Umidade do Solo (digital): ");
+  Serial.print("Umidade do Solo: ");
   Serial.print(umidade);
-  Serial.println("%");
+  Serial.println(" %");
 
   if (umidade < LIMITE_UMIDADE && !alertaUmidadeEmitido) {
     Serial.println("Umidade do solo baixa!");
@@ -152,5 +156,13 @@ void loop() {
     alertaUmidadeEmitido = false;
   }
 
-  delay(1000);
+  int estadoBomba1 = digitalRead(BOMBA1_PIN);
+  if (estadoBomba1 != statusBomba1Anterior) {
+    Serial.print("Bomba 1: ");
+    Serial.println(estadoBomba1 == LIGADO ? "LIGADA" : "DESLIGADA");
+    statusBomba1Anterior = estadoBomba1;
+  }
+
+  Serial.println("---------------------------");
+  delay(2000);
 }
